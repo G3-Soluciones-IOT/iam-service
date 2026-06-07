@@ -1,0 +1,14 @@
+target/
+*.log
+.env
+.idea/
+.vscode/
+.DS_Store
+secrets/
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+src/main/resources/jwt.key
+src/main/resources/jwt.key.pub
