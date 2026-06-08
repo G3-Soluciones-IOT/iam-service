@@ -7,12 +7,17 @@ import pe.edu.upc.iam_service.iam.application.internal.outboundservices.tokens.T
 import pe.edu.upc.iam_service.iam.domain.model.aggregates.User;
 import pe.edu.upc.iam_service.iam.domain.model.commands.SignInCommand;
 import pe.edu.upc.iam_service.iam.domain.model.commands.SignUpCommand;
+import pe.edu.upc.iam_service.iam.domain.model.exceptions.InvalidCredentialsException;
+import pe.edu.upc.iam_service.iam.domain.model.exceptions.RoleNotFoundException;
+import pe.edu.upc.iam_service.iam.domain.model.exceptions.UserNotFoundException;
+import pe.edu.upc.iam_service.iam.domain.model.exceptions.UsernameAlreadyExistsException;
 import pe.edu.upc.iam_service.iam.domain.model.valueobjects.Roles;
 import pe.edu.upc.iam_service.iam.domain.services.UserCommandService;
 import pe.edu.upc.iam_service.iam.infrastructure.persistence.jpa.repositories.RoleRepository;
 import pe.edu.upc.iam_service.iam.infrastructure.persistence.jpa.repositories.UserRepository;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Optional;
 
 @Service
@@ -37,16 +42,16 @@ public class UserCommandServiceImpl implements UserCommandService {
     @Override
     public Optional<User> handle(SignUpCommand command) {
         if (userRepository.existsByUsername(command.username()))
-            throw new RuntimeException("Username already exists");
+            throw new UsernameAlreadyExistsException(command.username());
 
-        var roles = new ArrayList<>(command.roles());
+        var roles = new ArrayList<>(command.roles() == null ? Collections.emptyList() : command.roles());
         if (roles.isEmpty()) {
             var role = roleRepository.findByName(Roles.ROLE_CUSTOMER);
-            if (role.isPresent()) roles.add(role.get());
+            roles.add(role.orElseThrow(() -> new RoleNotFoundException(Roles.ROLE_CUSTOMER)));
         } else {
             var foundRoles = roles.stream()
                     .map(role -> roleRepository.findByName(role.getName())
-                            .orElseThrow(() -> new RuntimeException("Role not found")))
+                            .orElseThrow(() -> new RoleNotFoundException(role.getName())))
                     .toList();
             roles = new ArrayList<>(foundRoles);
         }
@@ -62,9 +67,9 @@ public class UserCommandServiceImpl implements UserCommandService {
     @Override
     public Optional<ImmutablePair<User, String>> handle(SignInCommand command) {
         var user = userRepository.findByUsername(command.username()).
-                orElseThrow(() -> new RuntimeException("User not found"));
+                orElseThrow(() -> new UserNotFoundException(command.username()));
         if (!hashingService.matches(command.password(), user.getPassword()))
-            throw new RuntimeException("Invalid password");
+            throw new InvalidCredentialsException();
         var token = tokenService.generateToken(user.getUsername());
         return Optional.of(new ImmutablePair<>(user, token));
     }

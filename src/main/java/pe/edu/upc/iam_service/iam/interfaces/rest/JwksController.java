@@ -1,8 +1,6 @@
 package pe.edu.upc.iam_service.iam.interfaces.rest;
 
-import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -14,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pe.edu.upc.iam_service.iam.infrastructure.tokens.jwt.services.JwtKeyProvider;
 
-import java.security.interfaces.RSAPublicKey;
 import java.util.Map;
 
 @RestController
@@ -40,7 +37,8 @@ public class JwksController {
                                                   "kty": "RSA",
                                                   "e": "AQAB",
                                                   "use": "sig",
-                                                  "kid": "rsa-key-1",
+                                                  "alg": "RS256",
+                                                  "kid": "iam-service-rsa-1",
                                                   "n": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A..."
                                                 }
                                               ]
@@ -51,13 +49,6 @@ public class JwksController {
             })
     @GetMapping(value = "/.well-known/jwks.json", produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> jwks() {
-        RSAPublicKey publicKey = (RSAPublicKey) jwtKeyProvider.getPublicKey();
-
-        JWK jwk = new RSAKey.Builder(publicKey)
-                .keyID("rsa-key-1") // Identificador único de la clave
-                .build();
-
-        JWKSet jwkSet = new JWKSet(jwk);
-        return jwkSet.toJSONObject();
+        return new JWKSet(jwtKeyProvider.getPublicJwk()).toJSONObject();
     }
 }

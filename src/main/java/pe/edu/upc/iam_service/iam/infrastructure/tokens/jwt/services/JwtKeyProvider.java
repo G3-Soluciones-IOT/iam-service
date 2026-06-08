@@ -1,14 +1,22 @@
 package pe.edu.upc.iam_service.iam.infrastructure.tokens.jwt.services;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.KeyUse;
+import com.nimbusds.jose.jwk.RSAKey;
 import lombok.Getter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
+import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
@@ -18,32 +26,60 @@ import java.util.Base64;
  * and sanitizes PEM contents (LF/CRLF, BOM, whitespace).
  */
 public class JwtKeyProvider {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JwtKeyProvider.class);
 
     private final ResourceLoader resourceLoader;
     private final String privateKeyPath;
     private final String publicKeyPath;
+    private final String privateKeyValue;
+    private final String publicKeyValue;
+    private final String keyId;
 
     @Getter
     private PrivateKey privateKey;
     @Getter
     private PublicKey publicKey;
+    @Getter
+    private RSAKey publicJwk;
 
     public JwtKeyProvider(ResourceLoader resourceLoader,
                           String privateKeyPath,
-                          String publicKeyPath) {
+                          String publicKeyPath,
+                          String privateKeyValue,
+                          String publicKeyValue,
+                          String keyId) {
         this.resourceLoader = resourceLoader;
         this.privateKeyPath = privateKeyPath;
         this.publicKeyPath = publicKeyPath;
+        this.privateKeyValue = privateKeyValue;
+        this.publicKeyValue = publicKeyValue;
+        this.keyId = keyId;
         init();
     }
 
     private void init() {
         try {
-            this.privateKey = loadPrivateKey(privateKeyPath);
-            this.publicKey = loadPublicKey(publicKeyPath);
+            if (StringUtils.hasText(privateKeyValue) && StringUtils.hasText(publicKeyValue)) {
+                this.privateKey = parsePrivateKey(privateKeyValue);
+                this.publicKey = parsePublicKey(publicKeyValue);
+            } else if (StringUtils.hasText(privateKeyPath) && StringUtils.hasText(publicKeyPath)) {
+                this.privateKey = loadPrivateKey(privateKeyPath);
+                this.publicKey = loadPublicKey(publicKeyPath);
+            } else {
+                LOGGER.warn("JWT RSA keys are not configured. Generating an ephemeral RSA key pair for this process.");
+                var generator = KeyPairGenerator.getInstance("RSA");
+                generator.initialize(2048);
+                var keyPair = generator.generateKeyPair();
+                this.privateKey = keyPair.getPrivate();
+                this.publicKey = keyPair.getPublic();
+            }
+            this.publicJwk = new RSAKey.Builder((RSAPublicKey) this.publicKey)
+                    .keyUse(KeyUse.SIGNATURE)
+                    .algorithm(JWSAlgorithm.RS256)
+                    .keyID(keyId)
+                    .build();
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to load RSA keys from: " +
-                    privateKeyPath + " / " + publicKeyPath, e);
+            throw new IllegalStateException("Failed to initialize RSA keys for JWT signing", e);
         }
     }
 
@@ -52,7 +88,14 @@ public class JwtKeyProvider {
     // ------------------------
 
     private PrivateKey loadPrivateKey(String path) throws Exception {
-        String pem = readKeyFrom(path);
+        return parsePrivateKey(readKeyFrom(path));
+    }
+
+    private PublicKey loadPublicKey(String path) throws Exception {
+        return parsePublicKey(readKeyFrom(path));
+    }
+
+    private PrivateKey parsePrivateKey(String pem) throws Exception {
         String base64 = extractPemBase64(pem,
                 "-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----",
                 "-----BEGIN RSA PRIVATE KEY-----", "-----END RSA PRIVATE KEY-----");
@@ -71,8 +114,7 @@ public class JwtKeyProvider {
         }
     }
 
-    private PublicKey loadPublicKey(String path) throws Exception {
-        String pem = readKeyFrom(path);
+    private PublicKey parsePublicKey(String pem) throws Exception {
         String base64 = extractPemBase64(pem,
                 "-----BEGIN PUBLIC KEY-----", "-----END PUBLIC KEY-----");
 

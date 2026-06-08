@@ -21,7 +21,11 @@ import java.util.Collections;
 public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String INTERNAL_HEADER = "X-Internal-Request";
-    private static final String INTERNAL_SECRET = "internal-service-secret-key";
+    private final String internalSecret;
+
+    public InternalServiceAuthenticationFilter(String internalSecret) {
+        this.internalSecret = internalSecret;
+    }
 
     @Override
     protected void doFilterInternal(
@@ -32,7 +36,7 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
 
         String internalHeader = request.getHeader(INTERNAL_HEADER);
 
-        if (INTERNAL_SECRET.equals(internalHeader)) {
+        if (internalSecret.equals(internalHeader)) {
             var authentication = new UsernamePasswordAuthenticationToken(
                     "internal-service",
                     null,

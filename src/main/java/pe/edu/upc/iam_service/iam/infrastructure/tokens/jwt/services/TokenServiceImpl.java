@@ -15,6 +15,7 @@ import pe.edu.upc.iam_service.iam.infrastructure.tokens.jwt.BearerTokenService;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Date;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
@@ -30,14 +31,19 @@ public class TokenServiceImpl implements BearerTokenService {
         this.jwtKeyProvider = jwtKeyProvider;
     }
 
-    @Value("${authorization.jwt.expiration.days}")
+    @Value("${authorization.jwt.expiration.days:${authorization.jwt.expiration-days:7}}")
     private int expirationDays;
+
+    @Value("${authorization.jwt.issuer:iam-service}")
+    private String issuer;
+
+    @Value("${authorization.jwt.key-id:iam-service-rsa-1}")
+    private String keyId;
 
     private PrivateKey getSigningKey() {
         return jwtKeyProvider.getPrivateKey();
     }
 
-    // NUEVO MÉTODO PARA OBTENER LA CLAVE PÚBLICA (para verificar)
     private PublicKey getVerificationKey() {
         return jwtKeyProvider.getPublicKey();
     }
@@ -47,7 +53,12 @@ public class TokenServiceImpl implements BearerTokenService {
         var expiration = DateUtils.addDays(issuedAt, expirationDays);
         var key = getSigningKey();
         return Jwts.builder()
+                .header()
+                .keyId(keyId)
+                .and()
+                .issuer(issuer)
                 .subject(username)
+                .id(UUID.randomUUID().toString())
                 .issuedAt(issuedAt)
                 .expiration(expiration)
                 .signWith(key, Jwts.SIG.RS256)
@@ -58,10 +69,11 @@ public class TokenServiceImpl implements BearerTokenService {
     public boolean validateToken(String token) {
         try {
             Jwts.parser()
-                    .verifyWith(getVerificationKey()) // <-- ¡CAMBIO CLAVE! Usa la clave pública
+                    .verifyWith(getVerificationKey())
+                    .requireIssuer(issuer)
                     .build()
                     .parseSignedClaims(token);
-            LOGGER.info("Token is valid");
+            LOGGER.debug("JWT token is valid");
             return true;
         } catch (SignatureException e) {
             LOGGER.error("Invalid JSON Web Token signature: {}", e.getMessage());
@@ -120,7 +132,8 @@ public class TokenServiceImpl implements BearerTokenService {
 
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .verifyWith(getVerificationKey()) // <-- ¡CAMBIO CLAVE! Usa la clave pública
+                .verifyWith(getVerificationKey())
+                .requireIssuer(issuer)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

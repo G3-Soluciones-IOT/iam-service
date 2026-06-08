@@ -1,6 +1,7 @@
 package pe.edu.upc.iam_service.iam.infrastructure.authorization.sfs.configuration;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,17 +28,20 @@ public class WebSecurityConfiguration {
     private final BearerTokenService tokenService;
     private final BCryptHashingService hashingService;
     private final AuthenticationEntryPoint unauthorizedRequestHandler;
+    private final String internalServiceSecret;
 
     public WebSecurityConfiguration(
             @Qualifier("defaultUserDetailsService") UserDetailsService userDetailsService,
             BearerTokenService tokenService,
             BCryptHashingService hashingService,
-            AuthenticationEntryPoint unauthorizedRequestHandler
+            AuthenticationEntryPoint unauthorizedRequestHandler,
+            @Value("${authorization.internal-service.secret:internal-service-secret-key}") String internalServiceSecret
     ) {
         this.userDetailsService = userDetailsService;
         this.tokenService = tokenService;
         this.hashingService = hashingService;
         this.unauthorizedRequestHandler = unauthorizedRequestHandler;
+        this.internalServiceSecret = internalServiceSecret;
     }
 
     @Bean
@@ -47,7 +51,7 @@ public class WebSecurityConfiguration {
 
     @Bean
     public InternalServiceAuthenticationFilter internalServiceAuthenticationFilter() {
-        return new InternalServiceAuthenticationFilter();
+        return new InternalServiceAuthenticationFilter(internalServiceSecret);
     }
 
     @Bean
