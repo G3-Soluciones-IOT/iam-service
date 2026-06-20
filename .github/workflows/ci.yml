@@ -10,25 +10,9 @@ on:
       - main
       - develop
 
-# Temporally skipping tests to speed up the migration process. Tests will be re-enabled once the migration is complete.
 jobs:
   java-ci:
-    name: Compile IAM Service
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout service repository
-        uses: actions/checkout@v4
-
-      - name: Setup Temurin JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "25"
-          cache: maven
-
-      - name: Ensure Maven wrapper is executable
-        run: chmod +x ./mvnw
-
-      - name: Build without tests during migration
-        run: ./mvnw clean package -DskipTests
+    uses: G3-Soluciones-IOT/shared-workflows/.github/workflows/java-ci.yml@main
+    with:
+      java-version: "25"
+      working-directory: "."
