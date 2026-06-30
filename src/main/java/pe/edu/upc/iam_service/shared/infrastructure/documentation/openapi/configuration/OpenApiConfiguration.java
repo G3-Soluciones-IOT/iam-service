@@ -8,16 +8,21 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 
 @Configuration
 public class OpenApiConfiguration {
 
     @Bean
-    public OpenAPI iamOpenApi() {
+    public OpenAPI iamOpenApi(
+            @Value("${documentation.openapi.server-url:}") String serverUrl,
+            @Value("${documentation.openapi.server-description:Public Gateway}") String serverDescription) {
         final String securitySchemeName = "bearerAuth";
-        return new OpenAPI()
+        var openApi = new OpenAPI()
                 .info(apiInfo())
                 .externalDocs(externalDocs())
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
@@ -28,6 +33,14 @@ public class OpenApiConfiguration {
                                         .type(SecurityScheme.Type.HTTP)
                                         .scheme("bearer")
                                         .bearerFormat("JWT")));
+
+        if (StringUtils.hasText(serverUrl)) {
+            openApi.addServersItem(new Server()
+                    .url(serverUrl)
+                    .description(serverDescription));
+        }
+
+        return openApi;
     }
 
     private Info apiInfo() {
