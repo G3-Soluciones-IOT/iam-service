@@ -6,10 +6,13 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import pe.edu.upc.iam_service.iam.infrastructure.tokens.jwt.services.JwtKeyProvider;
 
 import java.util.Map;
@@ -20,9 +23,13 @@ import java.util.Map;
 public class JwksController {
 
     private final JwtKeyProvider jwtKeyProvider;
+    private final boolean legacyJwksEnabled;
 
-    public JwksController(JwtKeyProvider jwtKeyProvider) {
+    public JwksController(
+            JwtKeyProvider jwtKeyProvider,
+            @Value("${authorization.legacy-jwks.enabled:true}") boolean legacyJwksEnabled) {
         this.jwtKeyProvider = jwtKeyProvider;
+        this.legacyJwksEnabled = legacyJwksEnabled;
     }
 
     @Operation(summary = "Retrieve the JSON Web Key Set (JWKS)",
@@ -49,6 +56,9 @@ public class JwksController {
             })
     @GetMapping(value = "/.well-known/jwks.json", produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> jwks() {
+        if (!legacyJwksEnabled) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Legacy JWKS is disabled");
+        }
         return new JWKSet(jwtKeyProvider.getPublicJwk()).toJSONObject();
     }
 }

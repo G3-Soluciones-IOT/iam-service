@@ -42,6 +42,9 @@ public class BearerAuthorizationRequestFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
+        if (SecurityContextHolder.getContext().getAuthentication() != null) {
+            return true;
+        }
         var requestPath = request.getRequestURI();
         return PUBLIC_PATHS.stream().anyMatch(pattern -> pathMatcher.match(pattern, requestPath));
     }

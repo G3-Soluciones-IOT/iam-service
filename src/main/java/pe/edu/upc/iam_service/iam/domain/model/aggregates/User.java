@@ -21,6 +21,11 @@ public class User extends AuditableAbstractAggregateRoot<User> {
     private String username;
 
     @Getter
+    @Column(name = "auth0_sub", unique = true, length = 128)
+    @Size(max = 128)
+    private String auth0Sub;
+
+    @Getter
     @NotBlank
     @Size(max = 256)
     private String password;
@@ -57,6 +62,11 @@ public class User extends AuditableAbstractAggregateRoot<User> {
     public User addRoles(List<Role> roles) {
         var validatedRoleSet = Role.validateRoleSet(roles);
         this.roles.addAll(validatedRoleSet);
+        return this;
+    }
+
+    public User linkAuth0Sub(String auth0Sub) {
+        this.auth0Sub = auth0Sub;
         return this;
     }
 }

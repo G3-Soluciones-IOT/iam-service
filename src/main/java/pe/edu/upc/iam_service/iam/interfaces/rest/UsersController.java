@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,8 +40,9 @@ public class UsersController {
                                     array = @ArraySchema(schema = @Schema(implementation = UserResource.class)))),
                     @ApiResponse(responseCode = "500", description = "Internal server error",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
-            })
+    })
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('read:users', 'ROLE_ADMIN')")
     public ResponseEntity<List<UserResource>> getAllUsers() {
         var getAllUsersQuery = new GetAllUsersQuery();
         var users = userQueryService.handle(getAllUsersQuery);
@@ -60,8 +62,9 @@ public class UsersController {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE)),
                     @ApiResponse(responseCode = "500", description = "Internal server error",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
-            })
+    })
     @GetMapping("/{userId}")
+    @PreAuthorize("hasAnyAuthority('read:users', 'ROLE_ADMIN')")
     public ResponseEntity<UserResource> getUserById(@PathVariable Long userId) {
         var getUserByIdQuery = new GetUserByIdQuery(userId);
         var user = userQueryService.handle(getUserByIdQuery);

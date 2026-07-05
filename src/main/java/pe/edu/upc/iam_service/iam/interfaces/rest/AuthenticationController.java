@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,13 @@ import pe.edu.upc.iam_service.iam.interfaces.rest.transform.*;
 public class AuthenticationController {
 
     private final UserCommandService userCommandService;
+    private final boolean legacyJwtEnabled;
 
-    public AuthenticationController(UserCommandService userCommandService) {
+    public AuthenticationController(
+            UserCommandService userCommandService,
+            @Value("${authorization.legacy-jwt.enabled:true}") boolean legacyJwtEnabled) {
         this.userCommandService = userCommandService;
+        this.legacyJwtEnabled = legacyJwtEnabled;
     }
 
     @Operation(summary = "Authenticate a user (Sign In)",
@@ -39,6 +44,9 @@ public class AuthenticationController {
             })
     @PostMapping("/sign-in")
     public ResponseEntity<AuthenticatedUserResource> signIn(@Valid @RequestBody SignInResource signInResource) {
+        if (!legacyJwtEnabled) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
         var signInCommand = SignInCommandFromResourceAssembler.toCommandFromResource(signInResource);
         var authenticatedUser = userCommandService.handle(signInCommand);
         if (authenticatedUser.isEmpty()) return ResponseEntity.notFound().build();

@@ -16,10 +16,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import pe.edu.upc.iam_service.iam.infrastructure.authorization.auth0.Auth0AuthorizationRequestFilter;
 import pe.edu.upc.iam_service.iam.infrastructure.authorization.sfs.pipeline.BearerAuthorizationRequestFilter;
 import pe.edu.upc.iam_service.iam.infrastructure.authorization.sfs.pipeline.InternalServiceAuthenticationFilter;
 import pe.edu.upc.iam_service.iam.infrastructure.hashing.bcrypt.BCryptHashingService;
 import pe.edu.upc.iam_service.iam.infrastructure.tokens.jwt.BearerTokenService;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 @Configuration
 @EnableMethodSecurity
@@ -29,19 +31,25 @@ public class WebSecurityConfiguration {
     private final BCryptHashingService hashingService;
     private final AuthenticationEntryPoint unauthorizedRequestHandler;
     private final String internalServiceSecret;
+    private final boolean legacyJwtEnabled;
+    private final JwtDecoder auth0JwtDecoder;
 
     public WebSecurityConfiguration(
             @Qualifier("defaultUserDetailsService") UserDetailsService userDetailsService,
             BearerTokenService tokenService,
             BCryptHashingService hashingService,
             AuthenticationEntryPoint unauthorizedRequestHandler,
-            @Value("${authorization.internal-service.secret:internal-service-secret-key}") String internalServiceSecret
+            @Qualifier("auth0JwtDecoder") JwtDecoder auth0JwtDecoder,
+            @Value("${authorization.internal-service.secret:internal-service-secret-key}") String internalServiceSecret,
+            @Value("${authorization.legacy-jwt.enabled:true}") boolean legacyJwtEnabled
     ) {
         this.userDetailsService = userDetailsService;
         this.tokenService = tokenService;
         this.hashingService = hashingService;
         this.unauthorizedRequestHandler = unauthorizedRequestHandler;
         this.internalServiceSecret = internalServiceSecret;
+        this.legacyJwtEnabled = legacyJwtEnabled;
+        this.auth0JwtDecoder = auth0JwtDecoder;
     }
 
     @Bean
@@ -52,6 +60,11 @@ public class WebSecurityConfiguration {
     @Bean
     public InternalServiceAuthenticationFilter internalServiceAuthenticationFilter() {
         return new InternalServiceAuthenticationFilter(internalServiceSecret);
+    }
+
+    @Bean
+    public Auth0AuthorizationRequestFilter auth0AuthorizationRequestFilter() {
+        return new Auth0AuthorizationRequestFilter(auth0JwtDecoder);
     }
 
     @Bean
@@ -96,7 +109,10 @@ public class WebSecurityConfiguration {
                         .anyRequest().authenticated());
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(internalServiceAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
-        http.addFilterBefore(authorizationRequestFilter(), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(auth0AuthorizationRequestFilter(), UsernamePasswordAuthenticationFilter.class);
+        if (legacyJwtEnabled) {
+            http.addFilterBefore(authorizationRequestFilter(), UsernamePasswordAuthenticationFilter.class);
+        }
         return http.build();
     }
 }
