@@ -9,13 +9,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pe.edu.upc.iam_service.iam.domain.model.queries.GetAllUsersQuery;
 import pe.edu.upc.iam_service.iam.domain.model.queries.GetUserByIdQuery;
+import pe.edu.upc.iam_service.iam.domain.model.queries.GetUserByUsernameQuery;
 import pe.edu.upc.iam_service.iam.domain.services.UserQueryService;
+import pe.edu.upc.iam_service.iam.infrastructure.tokens.jwt.BearerTokenService;
 import pe.edu.upc.iam_service.iam.interfaces.rest.resources.UserResource;
 import pe.edu.upc.iam_service.iam.interfaces.rest.transform.UserResourceFromEntityAssembler;
 
@@ -27,9 +32,11 @@ import java.util.List;
 public class UsersController {
 
     private final UserQueryService userQueryService;
+    private final BearerTokenService tokenService;
 
-    public UsersController(UserQueryService userQueryService) {
+    public UsersController(UserQueryService userQueryService, BearerTokenService tokenService) {
         this.userQueryService = userQueryService;
+        this.tokenService = tokenService;
     }
 
     @Operation(summary = "Get all users",
@@ -52,6 +59,33 @@ public class UsersController {
         return ResponseEntity.ok(userResources);
     }
 
+    @Operation(summary = "Get current authenticated user",
+            description = "Retrieves the IAM user associated with the authenticated JWT subject.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Current user found",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = UserResource.class))),
+                    @ApiResponse(responseCode = "404", description = "Current user not found",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
+    })
+    @GetMapping("/me")
+    public ResponseEntity<UserResource> getCurrentUser(
+            Authentication authentication,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        var username = usernameFromBearer(authorization);
+        if (username == null || username.isBlank()) {
+            username = usernameFrom(authentication);
+        }
+        if (username == null || username.isBlank()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return userQueryService.handle(new GetUserByUsernameQuery(username))
+                .map(UserResourceFromEntityAssembler::toResourceFromEntity)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @Operation(summary = "Get a user by ID",
             description = "Retrieves the details of a specific user using their unique identifier.",
             responses = {
@@ -71,5 +105,26 @@ public class UsersController {
         if (user.isEmpty()) return ResponseEntity.notFound().build();
         var userResource = UserResourceFromEntityAssembler.toResourceFromEntity(user.get());
         return ResponseEntity.ok(userResource);
+    }
+
+    private String usernameFrom(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        if (authentication instanceof JwtAuthenticationToken jwtAuthentication) {
+            return jwtAuthentication.getToken().getSubject();
+        }
+        return authentication.getName();
+    }
+
+    private String usernameFromBearer(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return null;
+        }
+        var token = authorization.substring("Bearer ".length());
+        if (!tokenService.validateToken(token)) {
+            return null;
+        }
+        return tokenService.getUsernameFromToken(token);
     }
 }
