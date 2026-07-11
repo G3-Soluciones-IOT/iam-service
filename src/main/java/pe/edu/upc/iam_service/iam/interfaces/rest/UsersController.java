@@ -42,7 +42,7 @@ public class UsersController {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
     })
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('read:users', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('read:users', 'ROLE_ADMIN', 'ROLE_SERVICE')")
     public ResponseEntity<List<UserResource>> getAllUsers() {
         var getAllUsersQuery = new GetAllUsersQuery();
         var users = userQueryService.handle(getAllUsersQuery);
@@ -64,7 +64,7 @@ public class UsersController {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
     })
     @GetMapping("/{userId}")
-    @PreAuthorize("hasAnyAuthority('read:users', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('read:users', 'ROLE_ADMIN', 'ROLE_SERVICE')")
     public ResponseEntity<UserResource> getUserById(@PathVariable Long userId) {
         var getUserByIdQuery = new GetUserByIdQuery(userId);
         var user = userQueryService.handle(getUserByIdQuery);
